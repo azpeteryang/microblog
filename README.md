@@ -6,56 +6,51 @@
 
 <!-- GFM-TOC -->
 
-* 系统架构图
-* 在线演示
-* 运行环境
-* 性能测试
-* 缓存
-    * 热点微博
-    * Reids 和 Memcache
-    * Redis 配置
-    * 实现
-    * 业务上的折中
-    * 序列化方式的选择
-* Feed 流
-* 主从架构
-    * 主从复制
-    * 读写分离
-    * 主从复制配置
-* 安全性
-    * XSS 防御
+* System Architecture Diagram
+* Software
+* Performance
+* Cache
+    * Popular blog
+    * Reids and Memcache
+    * Redis configuration
+    * implement
+    * The compromise in bussiness
+    * Choose of serialization
+* Feed stream
+* Security
+    * XSS sefence
     * Redis Crackit
-* 交互设计
-    - 登录时异步修改用户头像
-    - 异步删帖
+* Interaction Design
+    - Asynchronously modify user avatar at login
+    - Asynchronous post deletion
     <!-- GFM-TOC -->
 
-## 系统架构图
+## System Architecture Diagram
 
 <div align="center">
   <img src="pics/1.png">
 </div>
 
 
-### 软件
+### Software
 
 - Linux : version 2.6.32-642.6.2.el6.x86_64
 - MySQL : Ver 14.14 Distrib 5.1.73
 - Redis : v=4.0.8
 
-## 性能测试
+## Performance
 
-使用 Apache 的 ab 工具来进行压力测试。
+Use Apache ab tool to test the pressure。
 
-为了防止网络时延的影响，因此在服务器端运行 ab 工具进行测试。
+In order to defend the inference of the of the timeout of the internet, run Apache ab tool on the server side
 
-使用以下命令来使用 ab 工具，其中 -c 参数为并发数，-n 参数为请求数，-k 参数表示持久连接，http://localhost/MBlog 就是待测试的网站。
+Use the following command to use the ab tools, -c is the number of concurrency, -n is the number of requests, -k means persistent connection.
 
 ```
-ab -c 1000 -n 5000 -k http://localhost/MBlog
+ab -c 1000 -n 5000 -k http://...
 ```
 
-在使用 Redis 进行缓存以及使用主从架构来实现读写分离之前，进行以上测试得到的部分结果如下，可以看出可以每秒平均的请求数为 715.81。
+Before using Redis for caching and using the master-slave architecture to achieve read-write separation, some of the results obtained from the above tests are as follows. It can be seen that the average number of requests per second is 715.81.
 
 ```
 Time taken for tests:   6.985 seconds
@@ -64,7 +59,7 @@ HTML transferred:       1530306 bytes
 Requests per second:    715.81 [#/sec] (mean)
 ```
 
-而在使用 Redis 以及主从架构之后，测试的结果如下，每秒平均的请求数以及提高到了 4839.62，大大提高了网站的吞吐量。
+After using Redis and the master-slave architecture, the test results are as follows, the average number of requests per second and increased to 4839.62, greatly improving the throughput of the website.
 
 ```
 Time taken for tests:   1.033 seconds
