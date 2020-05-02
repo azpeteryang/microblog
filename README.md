@@ -86,7 +86,7 @@ At the beginning of the project, facing the choice of Redis and Memcache, the ma
 
 Considering that the project needs to use multiple cache servers, Redis is preferred. Although Spring integrates Redis, you can use Redis for caching with annotations such as @Cacheable, but in order to make the cache more controllable, I chose to implement the caching function myself.
 
-### Redis 配置
+### Redis configuration
 
 First, Redis needs to be configured, mainly in two aspects: maximum memory usage and cache elimination strategy.
 
