@@ -68,56 +68,56 @@ HTML transferred:       1559682 bytes
 Requests per second:    4839.62 [#/sec] (mean)
 ```
 
-## 缓存实现
+## Cache implementation
 
-### 热点微博
+### Popular blogs
 
-微博内容具有读多写少的特性，这种场景下特别适合将数据进行缓存。MBlog 使用 Redis 缓存热点微博数据。
+The content of blog has the characteristics of reading more and writing less. In this scenario, it is particularly suitable for caching data. Redis is used to cache popular blog data.
 
-### Redis 和 Memcache
+### Redis and Memcache
 
-在项目开始的时候面临着 Redis 和 Memcache 的选择问题，它们之间的主要区别如下：
+At the beginning of the project, facing the choice of Redis and Memcache, the main differences between them are as follows:
 
-- Redis 有更好的分布式支持，而 Memcache 只能在客户端使用一致性 Hash 来支持分布式。
-- Redis 具有 RDB 快照和 AOF 日志两种持久化特性，而 Memcache 没有持久化机制。
-- Redis 的 Value 支持五种类型，而 Memcache 的 Value 只能是 String。
-- Redis 会将很久没用的 KV 交换到磁盘上，而 Memchache 的数据一直在内存中。
-- Memcache 为了完全去除磁盘碎片的影响，将内存分割成特定长度的块来存储数据，但是这种方式导致了内存利用率不高。例如块的大小为 128 bytes，只存储 100 bytes 的数据，那么剩下的 28 bytes 就浪费掉了。
+- Redis has better distributed support, while Memcache can only use consistent hashing on the client to support distributed.
+- Redis has two persistence features, RDB snapshot and AOF log, while Memcache has no persistence mechanism.
+- Redis Value supports five types, while Memcache Value can only be String.
+- Redis will swap the KV that has been useless for a long time to disk, and Memchache's data has been in memory.
+- In order to completely remove the impact of disk fragmentation, Memcache divides the memory into blocks of a specific length to store data, but this method results in low memory utilization. For example, the block size is 128 bytes, and only 100 bytes of data is stored, so the remaining 28 bytes are wasted.
 
-考虑到项目需要使用多台缓存服务器，因此首选 Redis。虽然 Spring 整合了 Redis，使用 @Cacheable 等注解就可以使用 Redis 进行缓存，但是为了让缓存更可控，因此选择自己实现缓存功能。
+Considering that the project needs to use multiple cache servers, Redis is preferred. Although Spring integrates Redis, you can use Redis for caching with annotations such as @Cacheable, but in order to make the cache more controllable, I chose to implement the caching function myself.
 
 ### Redis 配置
 
-首先需要对 Redis 进行配置，主要是两个方面：内存最大使用量以及缓存淘汰策略。
+First, Redis needs to be configured, mainly in two aspects: maximum memory usage and cache elimination strategy.
 
-内存最大使用量在服务器能接受的范围内越大越好，一般要比热点数据大一些，因为 Reids 不仅要用来存储数据，还有存 Redis 运行过程的数据。
+The larger the maximum memory usage is within the acceptable range of the server, the better. It is generally larger than the hotspot data, because Reids is not only used to store data, but also stores data during the operation of Redis.
 
-Redis 有五种缓存淘汰策略，为了选择一种适合项目的策略，需要先对每种策略进行一个了解。
+Redis has five cache elimination strategies. In order to choose a strategy suitable for the project, you need to first understand each strategy.
 
-NoEviction 和 TTL（Time to Live）不适合本项目的缓存系统，因为不淘汰和根据过期时间进行淘汰都不能保证留在缓存中的数据都尽可能是热点数据。Random 也和过期时间相关，并且随机化策略无法保证热点数据。LRU（least recently used） 策略将最近最少使用的数据进行淘汰，最近使用次数多的数据被认为是热点数据，因此将最近最少使用的数据淘汰之后，能在很大程度上保证在缓存中的数据都是热点数据。
+NoEviction and TTL (Time to Live) are not suitable for the cache system of this project, because neither elimination nor elimination according to the expiration time can guarantee that the data remaining in the cache is as hot data as possible. Random is also related to expiration time, and randomization strategies cannot guarantee hotspot data. The LRU (least recently used) strategy eliminates the least recently used data. The most recently used data is considered to be hot data. Therefore, after the least recently used data is eliminated, the data in the cache can be largely guaranteed. All are popular data.
 
-|      策略       |                         描述                         |
+|      Method       |                         Description                        |
 | :-------------: | :--------------------------------------------------: |
-|  volatile-lru   | 从已设置过期时间的数据集中挑选最近最少使用的数据淘汰 |
-|  volatile-ttl   |   从已设置过期时间的数据集中挑选将要过期的数据淘汰   |
-| volatile-random |      从已设置过期时间的数据集中任意选择数据淘汰      |
-|   allkeys-lru   |       从所有数据集中挑选最近最少使用的数据淘汰       |
-| allkeys-random  |          从所有数据集中任意选择数据进行淘汰          |
-|   noeviction    |                     禁止驱逐数据                     |
+|  volatile-lru   | Select the least recently used data from the data set with the expiration time set to be eliminated |
+|  volatile-ttl   |   Select the data that is about to expire from the data set that has been set to expire   |
+| volatile-random |      Choose data elimination from the data set with the expiration time set      |
+|   allkeys-lru   |       Select the least recently used data from all data sets to eliminate       |
+| allkeys-random  |          Randomly select data from all data sets for elimination          |
+|   noeviction    |                     Ban eviction data                     |
 
-LRU 除了在 Redis 中被当做缓存淘汰策略，它在很多场合都被使用，例如操作系统的页面置换算法可以使用 LRU，这是因为页面置换算法也相当于一个缓存淘汰算法。Java 里面的 LinkedHashMap 可以保存插入键值对的 LRU，在 Java 程序中就可以使用 LinkedHashMap 来实现类似的缓存淘汰功能。
+In addition to being used as a cache elimination strategy in Redis, LRU is used in many occasions. For example, the page replacement algorithm of the operating system can use LRU, because the page replacement algorithm is also equivalent to a cache elimination algorithm. The LinkedHashMap in Java can save LRUs inserted with key-value pairs. In Java programs, LinkedHashMap can be used to achieve a similar cache elimination function.
 
-实现 LRU 其实也很简单，就是通过一个链表来维护顺序，在访问一个元素时，就将元素移到链表头部，那么链表尾部的元素就是最近最少使用的元素，可以将它淘汰。笔者自己也实现了一个简单的 LRU，源码：[LRU](https://github.com/CyC2018/Algorithm/blob/master/Caching/src/LRU.java)
+Realizing LRU is actually very simple, that is, maintaining the order through a linked list. When an element is accessed, the element is moved to the head of the linked list. Then the element at the tail of the linked list is the least recently used element, which can be eliminated.
 
-### 实现
+### Implement
 
-为了实现缓存功能，需要修改获取微博和添加微博的实现代码。
+In order to realize the caching function, the implementation code of acquiring blog and adding Weibo needs to be modified.
 
-在获取微博的代码中，首先从 Redis 中获取，如果获取失败就从数据库中获取。
+In the code for getting Weibo, first get it from Redis, and if it fails, get it from the database.
 
-其中 BlogCacheDao 实现了缓存的获取和添加功能，CacheHitDao 用来记录缓存的命中次数和未命中次数，这是为了对系统进行监控，从而对缓存进行优化，并且能够及时发现缓存穿透和缓存雪崩等问题。
+Among them, BlogCacheDao implements the function of acquiring and adding cache. CacheHitDao is used to record the number of cache hits and misses. This is to monitor the system to optimize the cache, and can find cache penetration and cache avalanche problems .
 
-在添加微博到数据库的同时也要将它添加到 Redis 中，这是因为数据库使用的是主从架构来实现的读写分离，主从同步过程需要一定的时间，这一段时间主备数据库是不一致的。如果读请求发送到从数据库，那么就无法读取到最新的数据。如果在写的同时将数据添加到缓存中，那么读最新数据的请求就不会发送到从服务器，从而避免了主备服务器在同步期间的不一致。
+When adding blogs to the database, it must also be added to Redis. This is because the database uses a master-slave architecture to achieve read and write separation. The master-slave synchronization process requires a certain amount of time. Inconsistent. If the read request is sent to the secondary database, then the latest data cannot be read. If the data is added to the cache while writing, the request to read the latest data will not be sent to the slave server, thereby avoiding inconsistencies between the master and standby servers during synchronization.
 
 ```java
 @Override
@@ -146,19 +146,19 @@ public void addBlog(int userId, String content)
 }
 ```
 
-### 业务上的折中
+### Compromise
 
-如果微博内容不能被修改，那么就可以避免缓存不一致的问题，各级的缓存都能保证是有效的缓存。
+If the content of blog cannot be modified, then the problem of cache inconsistency can be avoided, and caches at all levels can be guaranteed to be effective caches.
 
-微博内容往往是很简单的，如果发布之后发现有错，重新发布一次的代价不会很高。并且微博内容往往具有时效性，也就是人们只会去阅读近期的微博，那么一个用户想要修改很久之前的微博内容就没有太多的意义，因为很少人能看到。
+The content of blog is often very simple. If you find something wrong after publishing, the cost of reposting it will not be very high. And the content of blog is often time-sensitive, that is, people will only read the recent Weibo, so a user who wants to modify the content of blog a long time ago does not make much sense, because few people can see it.
 
-本项目在业务上进行折中，不提供修改微博的功能，这能大大提高系统的性能。
+This project makes a trade-off in business and does not provide the function of modifying Weibo, which can greatly improve the performance of the system.
 
-从中可以发现，有时候无法克服的技术难题，通过在业务上进行简单调整，往往很容易就能解决。
+It can be found from this that sometimes difficult technical problems that cannot be overcome can be easily solved by simply adjusting the business.
 
-### 序列化方式的选择
+### Choice of serialization
 
-在实现 Redis 缓存功能时，最开始选择使用 Java 自带的序列化方式将一个对象转换成字节数组然后存储，但是后来意识到这样序列化得到的内容有很多是类定义的内容，这部分内容完全没必要存入缓存中，只需要将几个关键字段拼接成字符串存储即可，实现代码如下：
+When implementing the Redis cache function, I first chose to use Java's own serialization method to convert an object into a byte array and then store it, but later realized that many of the content obtained by this serialization is class-defined content, this part of the content There is no need to store in the cache at all, only a few key fields need to be spliced into a string storage, the implementation code is as follows:
 
 ```java
     public static String writeBlogObject(Blog blog)
@@ -185,41 +185,29 @@ public void addBlog(int userId, String content)
     }
 ```
 
-为了验证两种序列化方式的时间和空间上的开销，进行了两个基准测试，测试代码在 com.cyc.benchmark.SerializeTest.java 中，因为比较长就不贴代码了。
+In order to verify the time and space overhead of the two serialization methods, two benchmark tests were conducted. The test code is in com.cyc.benchmark.SerializeTest.java, because the longer code is not posted.
 
-首先模拟一个微博对象，存放一定的微博内容，然后使用 Java 自带的序列化方式和拼接的方式分别运行 1000000 次的序列化和反序列化，统计存储所需要的字节数和总时间，如下：
+First simulate a blog object, store a certain amount of Weibo content, and then use the serialization and splicing methods that come with Java to run serialization and deserialization 1,000,000 times, respectively, to count the number of bytes and total time required for storage ,as follows:
 
 |                | Java 序列化 | 字段拼接 |
 | :------------: | :---------: | :------: |
 | 存储所需字节数 |     298     |    48    |
 |   运行时间/s   |   14.301    |  4.113   |
 
-可以发现字段拼接方式实现的序列化方式，无论在空间上还是在时间上都比 Java 自带的序列化方式要好很多，因此项目使用自己实现的字段拼接方法。
+It can be found that the serialization method implemented by the field stitching method is much better than the serialization method that comes with Java, both in space and time, so the project uses its own field stitching method.
 
-至于 JSON 序列化方式，因为它也存储着字段的名称，因此很容易就能知道在空间开销上比字段拼接方式要高很多。
+As for the JSON serialization method, because it also stores the name of the field, it is easy to know that the space overhead is much higher than the field splicing method.
 
-## Feed 流
+## Feed Stream
 
-使用 Redis 的 ZSET 数据结构，为每个用户维护一个已发布微博 ID 集合 S1，分值为时间戳。当集合大小超过一定阈值时，删除最久远的数据。
+Use Redis's ZSET data structure to maintain a set of published microblog IDs S1 for each user, with a score of timestamp. When the collection size exceeds a certain threshold, the oldest data is deleted.
 
-同样使用 ZSET 为每个用户维护一个关注用户已发布微博 ID 集合 S2，使用拉模式维护 S2，在用户刷新首页之后，会主动从其关注者的 S1 中去拉取数据。具体的拉取过程为，先取出 S2 中最近的时间戳 t，遍历所有关注用户的 S1，取出分值为 t 到无穷大的数据，添加到 S2 中。S2 的大小超过一定阈值时也需要删除最久远的数据。
-
-
-
-当用户新关注一个用户时，需要将关注用户的 S1 合并到该用户的 S2 中。同样地，当用户取消关注一个用户时，需要遍历 S2 并移除关注用户的 S1 内容。
+Similarly, ZSET is used to maintain a set of microblog IDs S2 for each user, and the pull mode is used to maintain S2. After the user refreshes the homepage, they will actively pull data from their followers S1. The specific pulling process is to first take the latest timestamp t in S2, traverse all S1 of the users concerned, take out the data with a score from t to infinity, and add it to S2. When the size of S2 exceeds a certain threshold, the oldest data needs to be deleted.
 
 
-## 主从架构
 
-### 主从复制
+When a user focuses on a new user, the user's S1 needs to be merged into the user's S2. Similarly, when a user unfollows a user, it is necessary to traverse S2 and remove the S1 content of the following user.
 
-![](pics/5.png)
-
-MySQL 主从复制主要涉及三个线程：binlog 线程、I/O 线程和 SQL 线程。
-
--   **binlog 线程**  ：负责将主服务器上的数据更改写入二进制文件（binlog）中。
--   **I/O 线程**  ：负责从主服务器上读取二进制日志文件，并写入中继日志中。
--   **SQL 线程**  ：负责读取中继日志并重放其中的 SQL 语句。
 
 ### 读写分离
 
