@@ -1,10 +1,6 @@
-
-
-
-
 <div align="center">
     <h1>
-        MBlog
+        The design of a blog website
     </h1>
 </div>
 
