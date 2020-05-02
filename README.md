@@ -209,25 +209,24 @@ Similarly, ZSET is used to maintain a set of microblog IDs S2 for each user, and
 When a user focuses on a new user, the user's S1 needs to be merged into the user's S2. Similarly, when a user unfollows a user, it is necessary to traverse S2 and remove the S1 content of the following user.
 
 
-### 读写分离
+### Read-write separation
 
 ![](pics/6.png)
 
-主服务器用来处理写操作以及最新的读请求，而从服务器用来处理读操作。
+The master server is used to handle write operations and the latest read requests, while the slave server is used to handle read operations.
 
-读写分离常用代理方式来实现，代理服务器接收应用层传来的读写请求，然后决定转发到哪个服务器。
+The read-write separation is usually implemented by a proxy method. The proxy server receives the read-write request from the application layer, and then decides which server to forward to.
 
-MySQL 读写分离能提高性能的原因在于：
+The reasons why MySQL read-write separation can improve performance are:
 
-- 主从服务器负责各自的读和写，极大程度缓解了锁的争用；
-- 从服务器可以配置 MyISAM 引擎，提升查询性能以及节约系统开销；
-- 增加冗余，提高可用性。
+- The master and slave servers are responsible for their respective reads and writes, which greatly eases lock contention;
+- The slave server can be configured with MyISAM engine to improve query performance and save system overhead;
+- Increase redundancy and improve availability.
 
-### 主从复制配置
 
-#### 创建复制账号
+#### Create a copy account
 
-在主从服务器都创建用于复制的账号，并且账号必须在 master-host 和 slave-host 都进行授权，也就是说以下的命令需要在主从服务器上都执行一次。
+Create an account for replication on both the master and slave servers, and the account must be authorized on both master-host and slave-host, which means that the following commands need to be executed once on the master and slave servers.
 
 ```
 mysql > grant all privileges on *.* to repl@'master-host' identified by 'password';
@@ -235,15 +234,15 @@ mysql > grant all privileges on *.* to repl@'slave-host' identified by 'password
 mysql > flush privileges;
 ```
 
-完成后最好测试一下主从服务器是否能连通。
+After completion, it is best to test whether the master-slave server can be connected.
 
 ```
 mysql -u repl -h host -p
 ```
 
-#### 配置 my.cnf 文件
+#### configure my.cnf 
 
-主服务器
+Master server
 
 ```
 [root]# vi /etc/my.cnf
@@ -253,7 +252,7 @@ log-bin  = mysql-bin
 server-id = 10
 ```
 
-从服务器
+Slave server
 
 ```
 [root]# vi /etc/my.cnf
@@ -266,17 +265,16 @@ log-slave-updates = 1
 read-only         = 1
 ```
 
-重启 MySQL
+Restart MySQL
 
 ```
 [root]# service mysqld restart;
 ```
 
-《高性能 MySQL》书上的配置文件中使用的是下划线，例如 server_id，使用这种方式在当前版本的 MySQL 中不再生效。
 
-#### 启动复制
+#### Start Replication
 
-先查看主服务器的二进制文件名：
+First check the binary file name of the main server:
 
 ```
 mysql > show master status;
@@ -290,7 +288,7 @@ mysql > show master status;
 +------------------+----------+--------------+------------------+
 ```
 
-然后配置从服务器：
+Then configure the slave server:
 
 ```
 mysql > change master to master_host='master-host',            > master_user='repl',
@@ -299,13 +297,13 @@ mysql > change master to master_host='master-host',            > master_user='re
       > master_log_pos=0;
 ```
 
-在从服务器上启动复制：
+Start replication from the server:
 
 ```
 mysql > start slave
 ```
 
-查看复制状态，Slave_IO_Running 和 Slave_SQL_Running 必须都为 Yes 才表示成功。
+View the replication status. Slave_IO_Running and Slave_SQL_Running must be both Yes to indicate success.
 
 ```
 mysql > show slave status\G;
@@ -325,38 +323,31 @@ mysql > show slave status\G;
             ...
 ```
 
-## 安全性
+## Security
 
-### XSS 防御
+### XSS Defence
 
-微博之类的内容网站，如果没有对发布的内容进行处理，很容易受到 XSS 攻击的影响。例如任何用户都可以发布以下内容：
+If a content site such as blog does not process the published content, it is easily affected by XSS attacks. For example, any user can post the following:
 
 ```html
 <script> alert("hello"); </script>	
 ```
 
-这个脚本会被执行，从而导致其它用户在浏览到该内容时，浏览器弹出一个窗口，影响使用体验。
+This script will be executed, causing other users to pop up a window when browsing to the content, affecting the user experience.
 
-除此之外，XSS 还可以产生以下危害：
-
-- 窃取用户的 Cookie
-- 伪造虚假的输入表单骗取个人信息
-- 显示伪造的文章或者图片
-
-防御 XSS 也很容易，只要将 `<` 和 `>` 等字符进行转义即可。
+It is also easy to defend against XSS, as long as you escape characters such as `<` and `>`.
 
 ### Redis Crackit
 
-当使用 root 用户运行 Redis，并且 Redis 未设置密码或者设置为初始密码，那么攻击者很容易登录到 Redis 上，并且使用 config 命令修改 authorized_keys 文件，从而让攻击者无需用户名和密码即可登录。
+When using the root user to run Redis, and Redis has not set a password or set as the initial password, then the attacker can easily log in to Redis, and use the config command to modify the authorized_keys file, so that the attacker can log in without a username and password.
 
-解决方案是，使用普通用户运行 Redis，并且设置复杂的 Redis 密码。
+The solution is to use a normal user to run Redis and set a complex Redis password.
 
-## 交互设计
+## Interactive Design
 
-### 登录时异步修改用户头像
+### Asynchronously modify user avatar at login
 
-为了提高用户在登录时的使用体验，通过监听用户名输入框的 focusout 事件，当该事件发生时，通过 ajax 异步获取用户头像。
-
+In order to improve the user's experience when logging in, by listening to the focusout event of the user name input box, when this event occurs, the user's avatar is obtained asynchronously through ajax.
 ```js
 var userNameInput = $("input[name=userName]");
 userNameInput.focusout(function ()
@@ -380,11 +371,11 @@ userNameInput.focusout(function ()
     <img src="pics/9.gif">
 </div>
 
-### 异步删帖
+### Asynchronous post deletion
 
-考虑到用户在删帖后想继续浏览剩下的帖子，因此采用异步的方式进行删帖，删帖之后不需要刷新页面。
+Considering that the user wants to continue browsing the remaining posts after deleting the post, the post is deleted in an asynchronous manner, and there is no need to refresh the page after deleting the post.
 
-删帖成功之后，会将该帖子隐藏。为了更好的体验，隐藏过程设置了一个 200 毫秒的延迟，从而具有一个短暂的隐藏动画效果。
+After deleting the post successfully, the post will be hidden. For a better experience, the hiding process sets a delay of 200 milliseconds, which has a short hiding animation effect.
 
 ```js
 var deleteBlog = $("#delete-blog");
