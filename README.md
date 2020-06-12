@@ -11,7 +11,7 @@
 * Performance
 * Cache
     * Popular blog
-    * Reids and Memcache
+    * Redis and Memcache
     * Redis configuration
     * implement
     * The compromise in bussiness
